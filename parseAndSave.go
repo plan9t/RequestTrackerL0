@@ -122,7 +122,7 @@ JOIN
     payment p ON o.pk_order_id = p.pk_order_id
 JOIN
     items i ON o.pk_order_id = i.pk_order_id
-    ORDER BY o.pk_order_id
+    ORDER BY o.pk_order_id DESC
 LIMIT 50;
 `)
 	if err != nil {
