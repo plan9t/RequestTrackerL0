@@ -40,6 +40,7 @@ func main() {
 
 		// Публикация сообщения из перехватчика POST-запросов в тему на NATS-streaming
 		err = sc.Publish("WBChannel", message)
+		println("ОПУБЛИКОВАНО")
 		if err != nil {
 			http.Error(w, "Ошибка при отправке сообщения в NATS Streaming", http.StatusInternalServerError)
 			return

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/nats-io/stan.go"
+	"html/template"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,17 +15,15 @@ import (
 // Название канала ля NATS-STREAMING
 var channelName = "WBChannel"
 
-// Идентификаторы кластера и клиента
+// Идентификаторы кластера и клиента для NATS-STREAMING
 var clusterID = "WB-cluster"
 var clientID = "plan9t-client"
 
 // URL NATS Streaming сервера
 var natsURL = "nats://localhost:4222"
 
-// Подключение к NATS Streaming
+// Экземпляр подключения к NATS Streaming
 var sc stan.Conn
-
-// var err error
 
 var MyCache = NewCache()
 
@@ -45,15 +46,12 @@ func main() {
 
 	fmt.Println("PROGRAMM STARTED")
 
-	// Работа с КЭШ
+	// запуск сервера для интерфейса
+	http.HandleFunc("/", IndexHandler)
+	go http.ListenAndServe(":4444", nil)
 
+	// Восстановление кэша
 	MyCache.AddOrders(GetOrdersFromPostgreSQL())
-
-	// Запуск HTTP сервера на порту и старт прослушки порта 3333 в горутине
-	//go startHTTPServer()
-
-	// Настройка обработчика для POST запросов
-	//http.HandleFunc("/forpost", handlePostRequest)
 
 	// Проверка подключения к серверу NATS-streaming
 	if sc.NatsConn().IsConnected() {
@@ -62,45 +60,20 @@ func main() {
 		fmt.Println("Не подключено к серверу NATSSTREAMING")
 	}
 
-	// Создание канала (темы) при публикации сообщения
-	//err = sc.Publish(channelName, []byte("Канал "+channelName+" был создан"))
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-
 	// Подписка на канал и прослушка канала (здесь мы парсим JSON и записываем данные в PostgreSQL
 	_, err := createDurableSubscription(sc, channelName, clientID)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	//subscription, err := sc.Subscribe(channelName, func(msg *stan.Msg) {
-	//	fmt.Printf("Получено сообщение из канала '%s': %s\n", channelName, string(msg.Data))
+	fmt.Println("Текущий кэш:")
+	fmt.Println(MyCache.Orders)
 	//
-	//	// Вызывай функцию для парсинга JSON и сохранения в базу данных
-	//	orderData, err := parseJSON(msg.Data)
-	//	if err != nil {
-	//		fmt.Println("Ошибка при парсинге JSON:", err)
-	//		return
-	//	}
-	//	fmt.Println("JSON спашрен")
+	//fmt.Println("ИСКОМЫЙ ЗАКАЗ, КОТОРОГО НЕТ!! В КЭШЕ")
+	//fmt.Println(MyCache.GetOrderFromCacheOrDB("5__2363feb7b2b84b6t13371337"))
 	//
-	//	err = SaveToPostgreSQL(orderData)
-	//	if err != nil {
-	//		fmt.Println("Ошибка при сохранении в PostgreSQL:", err)
-	//		return
-	//	}
-	//	fmt.Println("Данные из темы ", channelName, " сохранены в БД")
-	//	// Запись в кэш
-	//	MyCache.AddOrder(orderData)
-	//	fmt.Println("Данные из темы ", channelName, " записаны в КЭШ")
-	//}, stan.DurableName(clientID))
-	//
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-
-	// После отработки функции main() отписка и закрытие соединения с сервером NATS-streaming
+	//fmt.Println("Обновленный кэш:")
+	//fmt.Println(MyCache.Orders)
 
 	// Создание канала для ожидания завершения работы программы
 	done := make(chan os.Signal, 1)
@@ -110,12 +83,14 @@ func main() {
 	select {
 	case <-done:
 		// Закрытие подключения к NATS Streaming
-		//subscription.Unsubscribe()
+
 		sc.Close()
 
 		// вывод кэша
+		fmt.Println("Кэш перед выходом из сервиса")
 		fmt.Println(MyCache.Orders)
 		fmt.Println("Программа завершена.")
+
 	}
 
 }
@@ -124,7 +99,7 @@ func createDurableSubscription(sc stan.Conn, channelName, clientID string) (stan
 	subscription, err := sc.Subscribe(channelName, func(msg *stan.Msg) {
 		fmt.Printf("Получено сообщение из канала '%s': %s\n", channelName, string(msg.Data))
 
-		// Вызывай функцию для парсинга JSON и сохранения в базу данных
+		// Вызрв функции для парсинга JSON и сохранения в базу данных
 		orderData, err := parseJSON(msg.Data)
 		if err != nil {
 			fmt.Println("Ошибка при парсинге JSON:", err)
@@ -153,7 +128,7 @@ func createDurableSubscription(sc stan.Conn, channelName, clientID string) (stan
 		subscription, err = sc.Subscribe(channelName, func(msg *stan.Msg) {
 			fmt.Printf("Получено сообщение из канала '%s': %s\n", channelName, string(msg.Data))
 
-			// Вызывай функцию для парсинга JSON и сохранения в базу данных
+			// Вызов функции для парсинга JSON и сохранения в базу данных
 			orderData, err := parseJSON(msg.Data)
 			if err != nil {
 				fmt.Println("Ошибка при парсинге JSON:", err)
@@ -176,39 +151,77 @@ func createDurableSubscription(sc stan.Conn, channelName, clientID string) (stan
 	return subscription, err
 }
 
-//func startHTTPServer() {
-//	err := http.ListenAndServe(":3333", nil)
-//	if err != nil {
-//		fmt.Println("Ошибка при запуске HTTP сервера:", err)
-//	}
-//	fmt.Println("HTTP сервер запущен")
-//}
-//
-//func handlePostRequest(w http.ResponseWriter, r *http.Request) {
-//	// Чтение тела запроса
-//	body, err := ioutil.ReadAll(r.Body)
-//	if err != nil {
-//		http.Error(w, "Ошибка при чтении тела запроса", http.StatusInternalServerError)
-//		return
-//	}
+func (c *Cache) GetOrderFromCacheOrDB(orderUID string) []Order {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-// Вывод содержимого тела запроса в консоль
-//fmt.Println("Получен POST-запрос:")
-//fmt.Println(string(body))
+	// Поиск заказа в кэше
+	for _, order := range c.Orders {
+		if order.OrderUID == orderUID {
+			return []Order{order}
+		}
+	}
 
-// Отправка ответа клиенту
-//w.WriteHeader(http.StatusOK)
-//w.Write([]byte("Запрос успешно обработан"))
+	// Если заказа нет в кэше, получаем его из базы данных
+	orders, err := GetOrderByOrderUID(orderUID)
+	if err != nil {
+		return nil
+	}
 
-//publishMessage(body, channelName, sc)
-//}
+	// Добавляем полученные заказы в кэш
+	c.Orders = append(c.Orders, orders...)
 
-// Функция для отправки сообщения в канал NATS Streaming
-//func publishMessage(message []byte, channelName string, sc stan.Conn) {
-//
-//	err := sc.Publish(channelName, message)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//	fmt.Printf("Опубликовано сообщение на канале '%s': %s\n", channelName, message)
-//}
+	return orders
+}
+
+type AjaxResponse struct {
+	InputData  string `json:"inputData"`
+	ResultData string `json:"resultData"`
+}
+
+func IndexHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		renderTemplate(w, "index", nil)
+	} else if r.Method == http.MethodPost {
+		// Обработка POST-запроса
+		var requestBody struct {
+			InputData string `json:"inputData"`
+		}
+
+		err := json.NewDecoder(r.Body).Decode(&requestBody)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		inputData := requestBody.InputData
+
+		//действия с данными
+
+		resultData := string(orderToJSON(MyCache.GetOrderFromCacheOrDB(inputData)))
+
+		//resultData := "tessssst"
+
+		// Отправка данных обратно в формате JSON
+		response := AjaxResponse{
+			InputData:  inputData,
+			ResultData: resultData,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}
+}
+
+func renderTemplate(w http.ResponseWriter, tmplName string, data interface{}) {
+	tmpl, err := template.New("").ParseGlob("templates/*.html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = tmpl.ExecuteTemplate(w, "layout", data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}

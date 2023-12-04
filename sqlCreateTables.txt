@@ -1,0 +1,54 @@
+CREATE TABLE orders (
+	pk_order_id SERIAL PRIMARY KEY,
+	order_uid varchar(32) NOT NULL,
+	track_number varchar(32) NOT NULL,
+	entry varchar(32) NOT NULL,
+	locale varchar(8) NOT NULL,
+	internal_signature varchar(32),
+	customer_id varchar(32) NOT NULL,
+	delivery_service varchar(32) NOT NULL,
+	shardkey varchar(32) NOT NULL,
+	sm_id integer NOT NULL,
+	date_created timestamp NOT NULL,
+	oof_shard integer NOT NULL
+);
+
+CREATE TABLE delivery (
+	pk_order_id integer PRIMARY KEY REFERENCES orders(pk_order_id),
+	name varchar(32) NOT NULL,
+	phone varchar(16) NOT NULL,
+	zip varchar(32) NOT NULL,
+	city varchar(32) NOT NULL,
+	address varchar(64) NOT NULL,
+	region varchar(32) NOT NULL,
+	email varchar(32) NOT NULL
+);
+
+CREATE TABLE payment (
+	pk_order_id integer PRIMARY KEY REFERENCES orders(pk_order_id),
+	transaction varchar(32) NOT NULL,
+	request_id varchar(64),
+	currency varchar(32) NOT NULL,
+	provider varchar(32) NOT NULL,
+	amount integer NOT NULL,
+	payment_dt integer NOT NULL,
+	bank varchar(32) NOT NULL,
+	delivery_cost integer NOT NULL,
+	goods_total integer NOT NULL,
+	custom_fee integer NOT NULL
+);
+
+CREATE TABLE items (
+	pk_order_id integer REFERENCES orders(pk_order_id),
+	chrt_id integer NOT NULL,
+	track_number varchar(32) NOT NULL,
+	price integer NOT NULL,
+	rid varchar(32) NOT NULL,
+	name varchar(32) NOT NULL,
+	sale integer NOT NULL,
+	size varchar(32) NOT NULL,
+	total_price integer NOT NULL,
+	nm_id integer NOT NULL,
+	brand varchar(32) NOT NULL,
+	status integer NOT NULL
+);

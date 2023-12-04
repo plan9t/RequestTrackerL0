@@ -1,0 +1,114 @@
+{{define "content"}}
+
+<style>
+    #result {
+        margin-top: 20px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        background-color: #f8f8f8;
+        min-width: 300px;
+        min-height: 150px;
+    }
+
+    #result p {
+        margin-bottom: 10px;
+    }
+</style>
+
+<h1>{{.Title}}</h1>
+
+<form id="myForm">
+    <label for="inputData">Введите данные:</label>
+    <input type="text" id="inputData" name="inputData" required>
+    <button type="button" onclick="submitForm()">Отправить</button>
+</form>
+
+<div id="result">
+
+    <p>order_uid: <span id="displayInputData"></span></p>
+    <p>Заказ: <span id="displayResultData"></span></p>
+
+</div>
+
+
+
+
+<script>
+    function submitForm() {
+        var inputData = document.getElementById("inputData").value;
+
+        console.log("Отправка данных на сервер:", inputData);
+
+        fetch('/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                inputData: inputData,
+            }),
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Полученные данные от сервера:", data);
+
+                // Проверяем, что элементы существуют
+                var displayInputDataElement = document.getElementById("displayInputData");
+                var displayResultDataElement = document.getElementById("displayResultData");
+
+                if (displayInputDataElement && displayResultDataElement) {
+                    // Обновляем значения элементов
+                    displayInputDataElement.innerText = data.inputData;
+                    displayResultDataElement.innerText = data.resultData;
+                } else {
+                    console.error("Элементы не найдены");
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+            });
+    }
+
+
+    document.addEventListener("DOMContentLoaded", function() {
+        function submitForm() {
+            var inputData = document.getElementById("inputData").value;
+
+            console.log("Отправка данных на сервер:", inputData);
+
+            fetch('/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    inputData: inputData,
+                }),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Полученные данные от сервера:", data);
+
+                    // Проверяем, что элементы существуют
+                    var displayInputDataElement = document.getElementById("displayInputData");
+                    var displayResultDataElement = document.getElementById("displayResultData");
+
+                    if (displayInputDataElement && displayResultDataElement) {
+                        // Обновляем значения элементов
+                        displayInputDataElement.innerText = data.inputData;
+                        displayResultDataElement.innerText = data.resultData;
+                    } else {
+                        console.error("Элементы не найдены");
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                });
+        }
+    });
+</script>
+{{end}}
+
+{{define "layout"}}
+{{template "content" .}}
+{{end}}

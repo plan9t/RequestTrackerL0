@@ -116,15 +116,260 @@ SELECT
     i.status AS item_status
 FROM
     orders o
-JOIN
+LEFT JOIN
     delivery d ON o.pk_order_id = d.pk_order_id
-JOIN
+LEFT JOIN
     payment p ON o.pk_order_id = p.pk_order_id
-JOIN
+LEFT JOIN
     items i ON o.pk_order_id = i.pk_order_id
-    ORDER BY o.pk_order_id DESC
-LIMIT 50;
+WHERE
+    o.pk_order_id IN (
+        SELECT pk_order_id
+        FROM orders
+        ORDER BY pk_order_id DESC
+        LIMIT 5
+    )
+ORDER BY
+    o.order_uid DESC;
 `)
+	if err != nil {
+		fmt.Println("Ошибка при выполнении запроса к базе данных:", err)
+		return nil, nil
+	}
+	defer rows.Close()
+
+	var (
+		currentOrderUID string
+		currentOrder    Order
+	)
+
+	var orders []Order
+
+	//counter := 1
+
+	for rows.Next() {
+
+		//fmt.Println("Counter rows = ", counter)
+		//counter++
+
+		var (
+			orderUID       string
+			trackNumber    string
+			entry          string
+			locale         string
+			internalSig    string
+			customerID     string
+			deliveryServ   string
+			shardKey       string
+			smID           int
+			dateCreated    time.Time
+			oofShard       string
+			deliveryName   string
+			deliveryPhone  string
+			deliveryZip    string
+			deliveryCity   string
+			deliveryAddr   string
+			deliveryRegion string
+			deliveryEmail  string
+			trans          string
+			reqID          string
+			currency       string
+			provider       string
+			amount         int
+			paymentDt      int
+			bank           string
+			deliveryCost   int
+			goodsTotal     int
+			customFee      int
+			chrtID         int
+			itemTrackNum   string
+			price          int
+			rid            string
+			name           string
+			sale           int
+			size           string
+			totalPrice     int
+			nmID           int
+			brand          string
+			status         int
+		)
+
+		err := rows.Scan(
+			&orderUID, &trackNumber, &entry, &locale, &internalSig, &customerID, &deliveryServ, &shardKey, &smID, &dateCreated, &oofShard,
+			&deliveryName, &deliveryPhone, &deliveryZip, &deliveryCity, &deliveryAddr, &deliveryRegion, &deliveryEmail,
+			&trans, &reqID, &currency, &provider, &amount, &paymentDt, &bank, &deliveryCost, &goodsTotal, &customFee,
+			&chrtID, &itemTrackNum, &price, &rid, &name, &sale, &size, &totalPrice, &nmID, &brand, &status,
+		)
+		if err != nil {
+			fmt.Println("Ошибка при сканировании результата:", err)
+			return nil, nil
+		}
+
+		//fmt.Println("currentOrderUID = " + currentOrderUID)
+		//fmt.Println("orderUID = " + orderUID)
+
+		// Если текущий orderUID отличается от предыдущего, создаем новый элемент Order
+		if currentOrderUID != orderUID {
+
+			orders = append(orders, currentOrder)
+
+			currentOrderUID = orderUID
+
+			// Создаем новый заказ
+			currentOrder = Order{
+				OrderUID:          orderUID,
+				TrackNumber:       trackNumber,
+				Entry:             entry,
+				Locale:            locale,
+				InternalSignature: internalSig,
+				CustomerID:        customerID,
+				DeliveryService:   deliveryServ,
+				ShardKey:          shardKey,
+				SmID:              smID,
+				DateCreated:       dateCreated,
+				OofShard:          oofShard,
+				Delivery: Delivery{
+					Name:    deliveryName,
+					Phone:   deliveryPhone,
+					Zip:     deliveryZip,
+					City:    deliveryCity,
+					Address: deliveryAddr,
+					Region:  deliveryRegion,
+					Email:   deliveryEmail,
+				},
+				Payment: Payment{
+					Transaction:  trans,
+					RequestID:    reqID,
+					Currency:     currency,
+					Provider:     provider,
+					Amount:       amount,
+					PaymentDt:    paymentDt,
+					Bank:         bank,
+					DeliveryCost: deliveryCost,
+					GoodsTotal:   goodsTotal,
+					CustomFee:    customFee,
+				},
+				Items: []Item{},
+			}
+
+			item := Item{
+				ChrtID:      chrtID,
+				TrackNumber: itemTrackNum,
+				Price:       price,
+				RID:         rid,
+				Name:        name,
+				Sale:        sale,
+				Size:        size,
+				TotalPrice:  totalPrice,
+				NmID:        nmID,
+				Brand:       brand,
+				Status:      status,
+			}
+			currentOrder.Items = append(currentOrder.Items, item)
+
+		} else {
+
+			item := Item{
+				ChrtID:      chrtID,
+				TrackNumber: itemTrackNum,
+				Price:       price,
+				RID:         rid,
+				Name:        name,
+				Sale:        sale,
+				Size:        size,
+				TotalPrice:  totalPrice,
+				NmID:        nmID,
+				Brand:       brand,
+				Status:      status,
+			}
+			currentOrder.Items = append(currentOrder.Items, item)
+			// fmt.Println("ОТРАБОТАЛ ПУШ ИТЕМА В ИТЕМС")
+		}
+
+		// пуш в итоговый массив с ордерами если 1. Отличается currentOrderUID и OrderUID; 2. Последняя строка.
+		//orders = append(orders, currentOrder)
+
+		// Вывод текущего ордера
+
+		// fmt.Println(currentOrder)
+	}
+	orders = append(orders, currentOrder)
+
+	if len(orders) > 0 {
+		orders = orders[1:]
+	}
+
+	// fmt.Println("ИТОГОВЫЙ МАССИВ СТРУКТУР:")
+	// fmt.Println(orders)
+	return orders, nil
+}
+
+// GetOrderByOrderUID возвращает данные о заказе по order_uid
+func GetOrderByOrderUID(orderUID string) ([]Order, error) {
+	// Подключение к PostgreSQL
+	dbURL := "postgresql://plan9t:plan9t@localhost:5432/WB?sslmode=disable"
+
+	// Открытие соединения с базой данных
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query(`
+SELECT
+    o.order_uid,
+    o.track_number,
+    o.entry,
+    o.locale,
+    o.internal_signature,
+    o.customer_id,
+    o.delivery_service,
+    o.shardkey,
+    o.sm_id,
+    o.date_created,
+    o.oof_shard,
+    d.name AS delivery_name,
+    d.phone AS delivery_phone,
+    d.zip AS delivery_zip,
+    d.city AS delivery_city,
+    d.address AS delivery_address,
+    d.region AS delivery_region,
+    d.email AS delivery_email,
+    p.transaction,
+    p.request_id,
+    p.currency,
+    p.provider,
+    p.amount,
+    p.payment_dt,
+    p.bank,
+    p.delivery_cost,
+    p.goods_total,
+    p.custom_fee,
+    i.chrt_id,
+    i.track_number AS item_track_number,
+    i.price AS item_price,
+    i.rid AS item_rid,
+    i.name AS item_name,
+    i.sale AS item_sale,
+    i.size AS item_size,
+    i.total_price AS item_total_price,
+    i.nm_id AS item_nm_id,
+    i.brand AS item_brand,
+    i.status AS item_status
+FROM
+    orders o
+LEFT JOIN
+    delivery d ON o.pk_order_id = d.pk_order_id
+LEFT JOIN
+    payment p ON o.pk_order_id = p.pk_order_id
+LEFT JOIN
+    items i ON o.pk_order_id = i.pk_order_id
+WHERE
+    o.order_uid = $1
+ORDER BY
+    o.pk_order_id DESC;
+`, orderUID)
 	if err != nil {
 		fmt.Println("Ошибка при выполнении запроса к базе данных:", err)
 		return nil, nil
@@ -304,6 +549,11 @@ func parseJSON(jsonData []byte) (Order, error) {
 	return orderData, err
 }
 
+func orderToJSON(orderData []Order) []byte {
+	jsonBytes, _ := json.Marshal(orderData)
+	return jsonBytes
+}
+
 // Сохранение данных в PostgreSQL
 func SaveToPostgreSQL(orderData Order) error {
 
@@ -389,7 +639,7 @@ func SaveToPostgreSQL(orderData Order) error {
 		return err
 	}
 
-	// Сохранение данных в таблицу items (через цикл т.к в JSON-е получаем массив с итемами)
+	// Сохранение данных в таблицу items (через цикл т.к в JSON-е получаем массив(!) с итемами)
 	for _, item := range orderData.Items {
 		_, err = tx.Exec(`
 		INSERT INTO items (pk_order_id, chrt_id, track_number, price, rid, name, sale, size, total_price, nm_id, brand, status)
